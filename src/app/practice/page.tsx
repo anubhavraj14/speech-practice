@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, BookOpen, Check, ExternalLink, Feather, LoaderCircle, MessageCircle, RefreshCw, Sparkles, Wind } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, ExternalLink, Feather, LoaderCircle, MessageCircle, RefreshCw, Sparkles, Volume2, VolumeX, Wind } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Button, Card, Select } from "@/components/ui";
 import { BreathPacer } from "@/components/breath-pacer";
@@ -11,6 +11,7 @@ import { BreathingWarmup } from "@/components/breathing-warmup";
 import { languageLabels } from "@/content/exercises";
 import { scenarioFor } from "@/content/scenarios";
 import { BREATH_EVERY_LABEL, PACE_LABEL, PACE_WPM } from "@/lib/breath";
+import { cueComplete } from "@/lib/cues";
 import { buildSession } from "@/lib/session";
 import type { GuidedSession, SessionBeat, Stage } from "@/lib/session";
 import { useStore } from "@/lib/store";
@@ -45,6 +46,7 @@ export default function PracticePage() {
   const [pace, setPace] = useState<Pace>(preferences.pace);
   const [breathingGuide, setBreathingGuide] = useState(preferences.breathingGuide);
   const [breathEvery, setBreathEvery] = useState<BreathEvery>(preferences.breathEvery);
+  const [sound, setSound] = useState(preferences.sound);
   const [session, setSession] = useState<GuidedSession | null>(null);
   const [startedSource, setStartedSource] = useState<Source>("curated");
   const [notice, setNotice] = useState<string | null>(null);
@@ -54,6 +56,7 @@ export default function PracticePage() {
   const changePace = (value: Pace) => { setPace(value); updatePreferences({ pace: value }); };
   const changeGuide = (value: boolean) => { setBreathingGuide(value); updatePreferences({ breathingGuide: value }); };
   const changeBreathEvery = (value: BreathEvery) => { setBreathEvery(value); updatePreferences({ breathEvery: value }); };
+  const changeSound = (value: boolean) => { setSound(value); updatePreferences({ sound: value }); };
 
   const runCurated = () => {
     setError(null); setNotice(null); updatePreferences({ language, difficulty });
@@ -95,13 +98,13 @@ export default function PracticePage() {
   };
 
   if (phase === "loading") return <LoadingCoach />;
-  if (phase === "run" && session) return <Coach session={session} notice={notice} pace={pace} setPace={changePace} breathingGuide={breathingGuide} setBreathingGuide={changeGuide} breathEvery={breathEvery} setBreathEvery={changeBreathEvery} autoAdvance={preferences.autoAdvance} reducedMotion={preferences.reducedMotion} exit={() => setPhase("setup")} finish={finish} />;
+  if (phase === "run" && session) return <Coach session={session} notice={notice} pace={pace} setPace={changePace} breathingGuide={breathingGuide} setBreathingGuide={changeGuide} breathEvery={breathEvery} setBreathEvery={changeBreathEvery} sound={sound} setSound={changeSound} haptics={preferences.haptics} autoAdvance={preferences.autoAdvance} reducedMotion={preferences.reducedMotion} exit={() => setPhase("setup")} finish={finish} />;
   if (phase === "reflect" && session) return <Reflection onSave={(confidence, comfort, notes) => {
     session.usedIds.filter((id) => !id.startsWith("theme:")).forEach(markCompleted);
     addSession({ id: crypto.randomUUID(), date: new Date().toISOString(), duration: minutes, exercises: session.usedIds, categories: [...new Set(session.stages.map((stage) => stageCategory[stage]))], languages: [...new Set(session.beats.map((beat) => beat.language))], difficulty, confidence, comfort, notes });
     setPhase("done");
   }} onSkip={() => setPhase("done")} />;
-  if (phase === "done") return <Completion restart={() => setPhase("setup")} dashboard={() => router.push("/dashboard")} />;
+  if (phase === "done") return <Completion sound={sound} haptics={preferences.haptics} restart={() => setPhase("setup")} dashboard={() => router.push("/dashboard")} />;
 
   return <AppShell><div className="page-wrap">
     <div className="hero-grid overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-[0_24px_80px_rgba(15,118,110,.12)] backdrop-blur-xl md:p-10 dark:border-white/10 dark:bg-slate-950/70">
@@ -147,7 +150,7 @@ export default function PracticePage() {
 
 function LoadingCoach() { return <div className="grid min-h-screen place-items-center bg-[var(--background)] p-6 text-center"><div><div className="relative mx-auto grid size-24 place-items-center rounded-full bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><span className="absolute inset-0 animate-ping rounded-full bg-teal-300/30"/><LoaderCircle className="animate-spin" size={30}/></div><h1 className="mt-7 text-2xl font-bold">Finding a fresh passage…</h1><p className="mt-2 text-slate-500">Checking public-domain and freely licensed sources.</p></div></div>; }
 
-function Coach({ session, notice, pace, setPace, breathingGuide, setBreathingGuide, breathEvery, setBreathEvery, autoAdvance, reducedMotion, exit, finish }: { session: GuidedSession; notice: string | null; pace: Pace; setPace: (value: Pace) => void; breathingGuide: boolean; setBreathingGuide: (value: boolean) => void; breathEvery: BreathEvery; setBreathEvery: (value: BreathEvery) => void; autoAdvance: boolean; reducedMotion: boolean; exit: () => void; finish: () => void }) {
+function Coach({ session, notice, pace, setPace, breathingGuide, setBreathingGuide, breathEvery, setBreathEvery, sound, setSound, haptics, autoAdvance, reducedMotion, exit, finish }: { session: GuidedSession; notice: string | null; pace: Pace; setPace: (value: Pace) => void; breathingGuide: boolean; setBreathingGuide: (value: boolean) => void; breathEvery: BreathEvery; setBreathEvery: (value: BreathEvery) => void; sound: boolean; setSound: (value: boolean) => void; haptics: boolean; autoAdvance: boolean; reducedMotion: boolean; exit: () => void; finish: () => void }) {
   const [index, setIndex] = useState(0);
   const beat = session.beats[index];
   const meta = stageMeta[beat.stage];
@@ -180,32 +183,33 @@ function Coach({ session, notice, pace, setPace, breathingGuide, setBreathingGui
           <div className="hidden items-center gap-1 rounded-full border border-slate-200 bg-white p-1 sm:flex dark:border-slate-700 dark:bg-slate-900">{paceOptions.map((value) => <button key={value} onClick={() => setPace(value)} className={cn("rounded-full px-3 py-1 text-xs font-bold transition", pace === value ? "bg-teal-600 text-white" : "text-slate-500")}>{PACE_LABEL[value]}</button>)}</div>
           <div className="hidden items-center gap-1 rounded-full border border-slate-200 bg-white p-1 sm:flex dark:border-slate-700 dark:bg-slate-900">{breathEveryOptions.map((value) => <button key={value} onClick={() => setBreathEvery(value)} className={cn("rounded-full px-3 py-1 text-xs font-bold transition", breathEvery === value ? "bg-teal-600 text-white" : "text-slate-500")}>{BREATH_EVERY_LABEL[value]}</button>)}</div>
           <button onClick={() => setBreathingGuide(!breathingGuide)} className={cn("choice-chip flex items-center gap-2 px-4", breathingGuide && "choice-chip-active")}><Wind size={15}/> Breath guide</button>
+          <button onClick={() => setSound(!sound)} aria-label={sound ? "Mute sound" : "Enable sound"} className={cn("choice-chip flex items-center gap-2 px-3", sound && "choice-chip-active")}>{sound ? <Volume2 size={15}/> : <VolumeX size={15}/>}</button>
         </div>
       </div>
       {notice && index === 0 && <p className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-100">{notice}</p>}
-      <AnimatePresence mode="wait"><motion.section key={beat.id} initial={{ opacity: 0, y: 24, filter: "blur(8px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -16, filter: "blur(6px)" }} transition={{ duration: .38, ease: [0.22, 1, 0.36, 1] }} className="my-auto py-8"><BeatContent beat={beat} index={index} pace={pace} breathingGuide={breathingGuide} breathEvery={breathEvery} autoAdvance={autoAdvance} reducedMotion={reducedMotion}/></motion.section></AnimatePresence>
+      <AnimatePresence mode="wait"><motion.section key={beat.id} initial={{ opacity: 0, y: 24, filter: "blur(8px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -16, filter: "blur(6px)" }} transition={{ duration: .38, ease: [0.22, 1, 0.36, 1] }} className="my-auto py-8"><BeatContent beat={beat} index={index} pace={pace} breathingGuide={breathingGuide} breathEvery={breathEvery} autoAdvance={autoAdvance} reducedMotion={reducedMotion} sound={sound} haptics={haptics}/></motion.section></AnimatePresence>
       <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-200/70 pt-5 dark:border-slate-800"><Button variant="ghost" disabled={index === 0} onClick={() => setIndex((value) => value - 1)}><ArrowLeft size={17}/> Back</Button><p className="hidden text-sm text-slate-400 sm:block">Move on when you feel ready. <span className="text-slate-300">· ← → to navigate · Space to play</span></p><Button onClick={next}>{index === session.beats.length - 1 ? "Reflect" : "Continue"} <ArrowRight size={17}/></Button></div>
     </main>
   </div>;
 }
 
-function BeatContent({ beat, index, pace, breathingGuide, breathEvery, autoAdvance, reducedMotion }: { beat: SessionBeat; index: number; pace: Pace; breathingGuide: boolean; breathEvery: BreathEvery; autoAdvance: boolean; reducedMotion: boolean }) {
+function BeatContent({ beat, index, pace, breathingGuide, breathEvery, autoAdvance, reducedMotion, sound, haptics }: { beat: SessionBeat; index: number; pace: Pace; breathingGuide: boolean; breathEvery: BreathEvery; autoAdvance: boolean; reducedMotion: boolean; sound: boolean; haptics: boolean }) {
   const wpm = PACE_WPM[pace];
 
   if (beat.type === "breathe") return <div className="mx-auto max-w-2xl text-center">
-    <BreathingWarmup language={beat.language} reducedMotion={reducedMotion}/>
+    <BreathingWarmup language={beat.language} reducedMotion={reducedMotion} sound={sound} haptics={haptics}/>
     <CoachNote>Breathing awareness helps you settle and speak on the out-breath. It is a coordination aid, not a cure for stuttering.</CoachNote>
   </div>;
 
   if (beat.type === "paragraph") return <div className="mx-auto max-w-3xl">
     <div className="mb-6 text-center"><p className="text-sm font-semibold text-slate-500">{beat.title}</p>{beat.source && <p className="mt-1 text-xs text-slate-400">{beat.source.author && `${beat.source.author} · `}{beat.source.url ? <a className="inline-flex items-center gap-1 underline underline-offset-2" href={beat.source.url} target="_blank" rel="noreferrer">{beat.source.label}<ExternalLink size={11}/></a> : beat.source.label}</p>}</div>
-    <BreathPacer sentences={beat.sentences ?? []} language={beat.language} wpm={wpm} breathingGuide={breathingGuide} breathEvery={breathEvery} autoAdvance={autoAdvance} reducedMotion={reducedMotion}/>
+    <BreathPacer sentences={beat.sentences ?? []} language={beat.language} wpm={wpm} breathingGuide={breathingGuide} breathEvery={breathEvery} autoAdvance={autoAdvance} reducedMotion={reducedMotion} sound={sound} haptics={haptics}/>
     <CoachNote>Speak each sentence on one easy out-breath. Commas are just gentle slow-downs, not breaths — breathe at the sentence breaks, or switch to “Free” and breathe whenever you need.</CoachNote>
   </div>;
 
   if (beat.type === "warmup" || beat.type === "sentence") return <div className="mx-auto max-w-3xl">
     <p className="mb-5 text-center text-sm font-semibold text-teal-700 dark:text-teal-300">{beat.type === "warmup" ? "Ease in — one phrase on the out-breath" : "Breathe, then speak this line"}</p>
-    <BreathPacer sentences={beat.text ? [beat.text] : []} language={beat.language} wpm={wpm} breathingGuide={breathingGuide} breathEvery={breathEvery} autoAdvance={autoAdvance} reducedMotion={reducedMotion}/>
+    <BreathPacer sentences={beat.text ? [beat.text] : []} language={beat.language} wpm={wpm} breathingGuide={breathingGuide} breathEvery={breathEvery} autoAdvance={autoAdvance} reducedMotion={reducedMotion} sound={sound} haptics={haptics}/>
   </div>;
 
   // speak beats: express (own words), converse (scenario), apply (real life)
@@ -217,7 +221,7 @@ function BeatContent({ beat, index, pace, breathingGuide, breathEvery, autoAdvan
         <p className="mt-2 text-lg font-semibold">{scenario.prompt}</p>
       </div>
       <p className="mb-4 text-center text-sm font-semibold text-teal-700 dark:text-teal-300">A natural reply — follow the breaths</p>
-      <BreathPacer sentences={scenario.model} language={beat.language} wpm={wpm} breathingGuide={breathingGuide} breathEvery={breathEvery} autoAdvance={autoAdvance} reducedMotion={reducedMotion}/>
+      <BreathPacer sentences={scenario.model} language={beat.language} wpm={wpm} breathingGuide={breathingGuide} breathEvery={breathEvery} autoAdvance={autoAdvance} reducedMotion={reducedMotion} sound={sound} haptics={haptics}/>
       <CoachNote>{scenario.yourTurn}</CoachNote>
     </div>;
   }
@@ -237,4 +241,4 @@ function Reflection({ onSave, onSkip }: { onSave: (confidence: number, comfort: 
   return <AppShell><div className="page-wrap max-w-3xl"><Badge>CHECK IN</Badge><h1 className="mt-5 text-4xl font-bold tracking-tight">How did communication feel?</h1><p className="mt-3 text-slate-500">This personal reflection adapts future suggestions. It does not diagnose or score your speech.</p><Card className="mt-8 grid gap-8 p-6 md:p-8"><Rating label="Comfort while speaking" value={comfort} setValue={setComfort}/><Rating label="Confidence sharing your message" value={confidence} setValue={setConfidence}/><label className="grid gap-2 text-sm font-semibold">A note to future you<textarea value={notes} onChange={(event) => setNotes(event.target.value)} className="min-h-28 rounded-2xl border border-slate-200 bg-slate-50 p-4 font-normal outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 dark:border-slate-700 dark:bg-slate-900" placeholder="What felt useful? What would you change next time?"/></label><div className="flex flex-wrap gap-3"><Button onClick={() => onSave(confidence, comfort, notes)}>Save reflection <Check size={17}/></Button><Button variant="ghost" onClick={onSkip}>Skip</Button></div></Card></div></AppShell>;
 }
 function Rating({ label, value, setValue }: { label: string; value: number; setValue: (value: number) => void }) { return <div><p className="font-semibold">{label}</p><div className="mt-3 grid grid-cols-5 gap-2">{[1,2,3,4,5].map((item) => <button key={item} onClick={() => setValue(item)} className={cn("choice-chip py-3", value === item && "choice-chip-active")}>{item}</button>)}</div><div className="mt-2 flex justify-between text-xs text-slate-400"><span>Difficult</span><span>Comfortable</span></div></div>; }
-function Completion({ restart, dashboard }: { restart: () => void; dashboard: () => void }) { return <AppShell><div className="grid min-h-[90vh] place-items-center p-6 text-center"><motion.div initial={{ opacity: 0, scale: .9 }} animate={{ opacity: 1, scale: 1 }}><div className="mx-auto grid size-24 place-items-center rounded-[2rem] bg-teal-600 text-white shadow-2xl shadow-teal-500/25"><Check size={40}/></div><h1 className="mt-7 text-4xl font-bold">You made space to speak.</h1><p className="mx-auto mt-3 max-w-md leading-7 text-slate-500">Progress can mean more comfort, less avoidance, or simply saying what you wanted to say.</p><div className="mt-8 flex justify-center gap-3"><Button variant="secondary" onClick={restart}><RefreshCw size={17}/> Another session</Button><Button onClick={dashboard}>Dashboard</Button></div></motion.div></div></AppShell>; }
+function Completion({ sound, haptics, restart, dashboard }: { sound: boolean; haptics: boolean; restart: () => void; dashboard: () => void }) { useEffect(() => { cueComplete({ sound, haptics }); }, [sound, haptics]); return <AppShell><div className="grid min-h-[90vh] place-items-center p-6 text-center"><motion.div initial={{ opacity: 0, scale: .9 }} animate={{ opacity: 1, scale: 1 }}><div className="mx-auto grid size-24 place-items-center rounded-[2rem] bg-teal-600 text-white shadow-2xl shadow-teal-500/25"><Check size={40}/></div><h1 className="mt-7 text-4xl font-bold">You made space to speak.</h1><p className="mx-auto mt-3 max-w-md leading-7 text-slate-500">Progress can mean more comfort, less avoidance, or simply saying what you wanted to say.</p><div className="mt-8 flex justify-center gap-3"><Button variant="secondary" onClick={restart}><RefreshCw size={17}/> Another session</Button><Button onClick={dashboard}>Dashboard</Button></div></motion.div></div></AppShell>; }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Pause, Play } from "lucide-react";
+import { cueWarmupExhale, cueWarmupHold, cueWarmupInhale } from "@/lib/cues";
 import type { Language } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -31,10 +32,12 @@ const LABELS: Record<Language, Record<PhaseKind, string>> = {
 export interface BreathingWarmupProps {
   language: Language;
   reducedMotion?: boolean;
+  sound?: boolean;
+  haptics?: boolean;
 }
 
 /** An animated, self-guided breathing warm-up with selectable patterns. */
-export function BreathingWarmup({ language, reducedMotion = false }: BreathingWarmupProps) {
+export function BreathingWarmup({ language, reducedMotion = false, sound = false, haptics = false }: BreathingWarmupProps) {
   const [pattern, setPattern] = useState<PatternId>("belly");
   const [stepIndex, setStepIndex] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(PATTERNS.belly.steps[0].seconds);
@@ -77,6 +80,16 @@ export function BreathingWarmup({ language, reducedMotion = false }: BreathingWa
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Sound + haptic cue at the start of each breathing phase.
+  useEffect(() => {
+    if (!playing) return;
+    const opts = { sound, haptics };
+    if (step.kind === "inhale") cueWarmupInhale(opts);
+    else if (step.kind === "exhale") cueWarmupExhale(opts);
+    else cueWarmupHold(opts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepIndex, playing]);
 
   const expanded = step.kind === "inhale" || step.kind === "hold";
 

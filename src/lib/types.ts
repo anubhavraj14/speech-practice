@@ -59,6 +59,10 @@ export interface Preferences {
   autoAdvance: boolean;
   /** How often the breath guide suggests a breath. */
   breathEvery: BreathEvery;
+  /** Soft audio cues (Web Audio) during breathing/reading. */
+  sound: boolean;
+  /** Haptic (vibration) cues on supported devices. */
+  haptics: boolean;
   /** @deprecated kept for Supabase schema compatibility; not used in UI */
   skills: string[];
 }

@@ -25,7 +25,7 @@ interface StoreValue {
 
 const RECENT_CAP = 120;
 
-const defaults: Preferences = { goal: 10, language: "mixed", difficulty: "easy", theme: "system", reducedMotion: false, showPauseMarkers: true, pace: "slow", breathingGuide: true, autoAdvance: true, breathEvery: "sentence", skills: ["breathing","pace","articulation","reading","prompts"] };
+const defaults: Preferences = { goal: 10, language: "mixed", difficulty: "easy", theme: "system", reducedMotion: false, showPauseMarkers: true, pace: "slow", breathingGuide: true, autoAdvance: true, breathEvery: "sentence", sound: true, haptics: true, skills: ["breathing","pace","articulation","reading","prompts"] };
 const Store = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {

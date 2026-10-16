@@ -11,6 +11,7 @@ import {
   wordSchedule,
 } from "@/lib/breath";
 import type { BreathEvery } from "@/lib/breath";
+import { cueInhale, cueSentenceEnd, cueSpeak } from "@/lib/cues";
 import type { Language } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,8 @@ export interface BreathPacerProps {
   breathEvery?: BreathEvery;
   autoAdvance?: boolean;
   reducedMotion?: boolean;
+  sound?: boolean;
+  haptics?: boolean;
   onComplete?: () => void;
 }
 
@@ -42,6 +45,8 @@ export function BreathPacer({
   breathEvery = "sentence",
   autoAdvance = true,
   reducedMotion = false,
+  sound = false,
+  haptics = false,
   onComplete,
 }: BreathPacerProps) {
   const units = useMemo(() => buildBreathUnits(sentences), [sentences]);
@@ -129,6 +134,16 @@ export function BreathPacer({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [playing, start]);
+
+  // Multisensory cues on each phase transition (sound + haptics).
+  useEffect(() => {
+    if (!playing) return;
+    const opts = { sound, haptics };
+    if (phase === "inhale") cueInhale(opts);
+    else if (phase === "speak") cueSpeak(opts);
+    else if (phase === "rest" && current?.endsSentence) cueSentenceEnd(opts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, index]);
 
   const expanded = phase === "inhale";
   const orbDurationSec = current
